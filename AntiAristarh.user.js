@@ -225,7 +225,7 @@
             </header>
             <aside class="info-card" id="info-card" aria-label="Информация об АнтиАристарх">
                 <div class="info-title">Об АнтиАристархе</div>
-                <p class="info-text">Все подлянки от Аристарха показываются и не копируются — вы можете спокойно пользоваться ИИ. Показывает скрытый текст на странице и блокирует его обычное копирование.</p>
+                <p class="info-text">Показывает обнаруженный скрытый текст на странице и исключает такие фрагменты из обычного копирования.</p>
             </aside>
             <div class="rows">
                 <button class="toggle" id="marker-toggle" type="button" aria-pressed="false">
