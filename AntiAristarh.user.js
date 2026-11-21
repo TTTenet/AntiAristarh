@@ -575,7 +575,14 @@
     function clipPathHidesText(clipPath) {
         if (!clipPath || clipPath === 'none') return false;
         const value = String(clipPath).toLowerCase();
-        if (/inset\(\s*(?:50|100)(?:%|px)/.test(value)) return true;
+        const inset = value.match(/inset\(([^)]+)\)/);
+        if (inset) {
+            const offsets = inset[1].split(/\s+round\s+/)[0].trim().split(/\s+/).slice(0, 4);
+            if (offsets.some(offset => {
+                const number = Number.parseFloat(offset);
+                return Number.isFinite(number) && (offset.includes('%') ? number >= 50 : number >= 100000);
+            })) return true;
+        }
         if (/(?:circle|ellipse)\(\s*0(?:px|%|\s|,|\))/.test(value)) return true;
         const polygon = value.match(/polygon\(([^)]+)\)/);
         if (polygon) {
@@ -592,6 +599,28 @@
         const rect = element.getBoundingClientRect();
         return rect.right < -100 || rect.left > window.innerWidth + 100 ||
             rect.bottom < -100 || rect.top > window.innerHeight + 100;
+    }
+
+    function textIsClippedBy(element, clippingElement, style) {
+        const clipsX = style.overflowX === 'hidden' || style.overflowX === 'clip';
+        const clipsY = style.overflowY === 'hidden' || style.overflowY === 'clip';
+        if (!clipsX && !clipsY) return false;
+
+        try {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const textRects = Array.from(range.getClientRects());
+            if (!textRects.length) return false;
+            const clipRect = clippingElement.getBoundingClientRect();
+            return textRects.some(rect =>
+                (clipsX && (rect.right <= clipRect.left + 1 || rect.left >= clipRect.right - 1 ||
+                    rect.left < clipRect.left - 1 || rect.right > clipRect.right + 1)) ||
+                (clipsY && (rect.bottom <= clipRect.top + 1 || rect.top >= clipRect.bottom - 1 ||
+                    rect.top < clipRect.top - 1 || rect.bottom > clipRect.bottom + 1))
+            );
+        } catch (_) {
+            return false;
+        }
     }
 
     function findHiddenCauses(textElement) {
@@ -619,7 +648,10 @@
                 /rect\(\s*0(?:px)?\s*,\s*0(?:px)?\s*,\s*0(?:px)?\s*,\s*0(?:px)?\s*\)/i.test(style.clip)) addCause(current, 'clip');
             if (filterHidesText(style.filter)) addCause(current, 'filter');
             if (maskHidesText(style.maskImage) || maskHidesText(style.webkitMaskImage)) addCause(current, 'mask');
-            if (transformHidesText(style.transform)) addCause(current, 'transform');
+            if (transformHidesText(style.transform) ||
+                (style.scale && style.scale !== 'none' && /(?:^|\s)0(?:\s|$)/.test(style.scale))) {
+                addCause(current, 'transform');
+            }
             if (isFarOffscreen(current, style)) addCause(current, 'offscreen');
             if (current.tagName === 'DETAILS' && !current.hasAttribute('open')) {
                 const summary = Array.from(current.children).find(child => child.tagName === 'SUMMARY');
@@ -632,15 +664,15 @@
                 (style.display === '-webkit-box' || style.display === 'box')) addCause(current, 'line-clamp');
             if (style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' &&
                 (style.overflowX !== 'visible' || style.overflow === 'hidden')) addCause(current, 'text-overflow');
-            if ((style.overflowX !== 'visible' && current.scrollWidth > current.clientWidth + 1) ||
-                (style.overflowY !== 'visible' && current.scrollHeight > current.clientHeight + 1)) {
-                addCause(current, 'overflow-clip');
-            }
+            if (textIsClippedBy(textElement, current, style)) addCause(current, 'overflow-clip');
 
             if (current === textElement) {
                 if (colorIsTransparent(style.color) ||
                     colorIsTransparent(style.webkitTextFillColor) ||
                     colorIsTransparent(style.webkitTextStrokeColor) ||
+                    (current.namespaceURI === 'http://www.w3.org/2000/svg' &&
+                        (colorIsTransparent(style.fill) || colorIsTransparent(style.stroke) ||
+                         Number.parseFloat(style.fillOpacity) <= 0.01 || Number.parseFloat(style.strokeOpacity) <= 0.01)) ||
                     textMatchesBackground(current, style)) addCause(current, 'color');
                 if (Number.parseFloat(style.fontSize) <= 1) addCause(current, 'font-size');
                 const lineHeight = Number.parseFloat(style.lineHeight);
@@ -656,6 +688,7 @@
                 const maxHeight = Number.parseFloat(style.maxHeight);
                 if ((rect.width <= 1 && (overflowX !== 'visible' || maxWidth <= 1)) ||
                     (rect.height <= 1 && (overflowY !== 'visible' || maxHeight <= 1))) addCause(current, 'zero-size');
+                if (textIsClippedBy(current, current, style)) addCause(current, 'overflow-clip');
             }
         }
         return causes;
@@ -749,6 +782,10 @@
                 saveAndSetStyle(element, 'color', '#ff102a', 'reveal');
                 saveAndSetStyle(element, '-webkit-text-fill-color', '#ff102a', 'reveal');
                 saveAndSetStyle(element, '-webkit-text-stroke-color', '#ff102a', 'reveal');
+                saveAndSetStyle(element, 'fill', '#ff102a', 'reveal');
+                saveAndSetStyle(element, 'stroke', '#ff102a', 'reveal');
+                saveAndSetStyle(element, 'fill-opacity', '1', 'reveal');
+                saveAndSetStyle(element, 'stroke-opacity', '1', 'reveal');
                 break;
             case 'font-size': {
                 const parentSize = element.parentElement
@@ -1205,7 +1242,7 @@
             scanQueued = false;
             replaceSiteBrand();
             scanPage();
-        }, 120);
+        }, 220);
     });
 
     observer.observe(document.body, {
