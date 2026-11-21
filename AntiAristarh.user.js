@@ -310,46 +310,31 @@
         if (persist) saveSettings();
     }
 
-    function replaceSiteBrand() {
-        const header = document.querySelector('header');
-        if (!header) return false;
-        const brandLink = Array.from(header.querySelectorAll('a[href]')).find(link => {
-            if (link.hasAttribute('data-anti-aristarh-brand')) return true;
-            const label = (link.getAttribute('aria-label') || '').toLowerCase();
-            const text = (link.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-            let url;
-            try { url = new URL(link.href, location.href); }
-            catch (_) { return false; }
-            const isHome = url.origin === location.origin && /^\/(?:ru|en)?\/?$/i.test(url.pathname);
-            return isHome && (/aryapaw/i.test(label) || /aryapaw/i.test(text));
-        });
-        if (!brandLink) return false;
+    let siteBrandStyle = null;
 
-        const currentLogo = brandLink.querySelector('[data-anti-aristarh-logo]');
-        const currentTitle = brandLink.querySelector('[data-anti-aristarh-title]');
-        if (brandLink.hasAttribute('data-anti-aristarh-brand') &&
-            currentLogo && currentTitle && currentTitle.textContent === 'АнтиАристарх') return true;
+    function ensureSiteBrandStyle() {
+        if (!siteBrandStyle) {
+            siteBrandStyle = document.createElement('style');
+            siteBrandStyle.id = 'anti-aristarh-site-brand-style';
+            siteBrandStyle.textContent = [
+                'header > a:first-of-type { display:inline-flex !important; align-items:center !important; gap:10px !important; }',
+                'header > a:first-of-type > strong { display:none !important; }',
+                'header > a:first-of-type::before { content:""; display:block; width:28px; height:28px; flex:0 0 28px; border-radius:8px; background-image:url("' + AVATAR + '"); background-position:center; background-size:cover; background-repeat:no-repeat; }',
+                'header > a:first-of-type::after { content:"АнтиАристарх"; display:block; color:var(--foreground, #fff); font-family:var(--font-ki, sans-serif); font-size:19px; font-weight:700; letter-spacing:-.025em; line-height:1; white-space:nowrap; }'
+            ].join('\n');
+        }
 
-        const logo = document.createElement('img');
-        logo.src = AVATAR;
-        logo.alt = '';
-        logo.setAttribute('data-anti-aristarh-logo', '');
-        logo.style.cssText = 'display:block;width:28px;height:28px;flex:0 0 28px;object-fit:cover;border-radius:8px';
-
-        const title = document.createElement('span');
-        title.textContent = 'АнтиАристарх';
-        title.setAttribute('data-anti-aristarh-title', '');
-        title.style.cssText = 'font-family:var(--font-ki, sans-serif);font-size:19px;font-weight:700;letter-spacing:-.025em;line-height:1;color:var(--foreground, #fff);white-space:nowrap';
-
-        brandLink.replaceChildren(logo, title);
-        brandLink.setAttribute('aria-label', 'АнтиАристарх — главная');
-        brandLink.setAttribute('title', 'АнтиАристарх');
-        brandLink.setAttribute('data-anti-aristarh-brand', '');
-        brandLink.style.gap = '10px';
-        return true;
+        const target = document.head || document.documentElement;
+        if (target && !siteBrandStyle.isConnected) target.appendChild(siteBrandStyle);
     }
 
-    replaceSiteBrand();
+    ensureSiteBrandStyle();
+
+    function ensurePanelMounted() {
+        if (panel.isConnected) return;
+        const target = document.body || document.documentElement;
+        if (target) target.appendChild(panel);
+    }
 
     minimizeButton.addEventListener('click', () => setMinimized(true));
     restoreButton.addEventListener('click', () => setMinimized(false));
@@ -1226,6 +1211,9 @@
     // Следим за динамически добавляемым текстом (например, на сайтах без полной перезагрузки).
     let scanQueued = false;
     const observer = new MutationObserver(records => {
+        ensurePanelMounted();
+        ensureSiteBrandStyle();
+
         const hasPageChanges = records.some(record => {
             const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
             if (target && target.closest && target.closest(`#${ROOT_ID}`)) return false;
@@ -1235,17 +1223,16 @@
         });
 
         if (!hasPageChanges || scanQueued) return;
-        replaceSiteBrand();
-        if (!IS_ARYAPAW && mainPanel.style.display === 'none') return;
         scanQueued = true;
         window.setTimeout(() => {
             scanQueued = false;
-            replaceSiteBrand();
+            ensurePanelMounted();
+            ensureSiteBrandStyle();
             scanPage();
         }, 220);
     });
 
-    observer.observe(document.body, {
+    observer.observe(document.documentElement, {
         subtree: true,
         childList: true,
         characterData: true,
@@ -1253,6 +1240,8 @@
         attributeFilter: ['class', 'style', 'hidden', 'open']
     });
 
+    ensurePanelMounted();
+    ensureSiteBrandStyle();
     if (IS_ARYAPAW) scanPage();
     updatePanel();
 })();
