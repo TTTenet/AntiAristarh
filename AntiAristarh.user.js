@@ -3,8 +3,8 @@
 // @namespace    anti-aristarh
 // @version      0.6.1
 // @homepageURL   https://github.com/TTTenet/AntiAristarh
-// @updateURL     https://raw.githubusercontent.com/TTTenet/AntiAristarh/main/AntiAristarh.user.js
-// @downloadURL   https://raw.githubusercontent.com/TTTenet/AntiAristarh/main/AntiAristarh.user.js
+// @updateURL     https://raw.githubusercontent.com/TTTenet/AntiAristarh/draft/v0.6.1-review/AntiAristarh.user.js
+// @downloadURL   https://raw.githubusercontent.com/TTTenet/AntiAristarh/draft/v0.6.1-review/AntiAristarh.user.js
 // @description  Находит специальные и другие скрытые фрагменты страницы.
 // @author       TTTenet
 // @match        *://aryapaw.dev/*
